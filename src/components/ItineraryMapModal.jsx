@@ -43,7 +43,7 @@ const ItineraryMapModal = ({ onClose }) => {
             {/* 標題 */}
             <div className="text-center mb-6 relative z-10">
               <h3 className="text-2xl font-serif font-bold text-stone-900 mb-1">Sam & Michelle</h3>
-              <p className="text-lg font-serif text-stone-600">東北旅鈣遊 5 日</p>
+              <p className="text-lg font-serif text-stone-600">東北初冬旅 5 日</p>
             </div>
 
             {/* D1 */}

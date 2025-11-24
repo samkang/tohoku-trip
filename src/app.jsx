@@ -168,7 +168,7 @@ const App = () => {
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase flex items-center gap-1">
                 Family Trip <ChevronRight className="w-3 h-3" />
-              </p>東北初旅遊 5 日
+              </p>
               <button 
                 onClick={() => setShowItineraryMap(true)}
                 className="bg-purple-100 text-purple-600 p-1.5 rounded-full hover:bg-purple-200 transition-colors"
