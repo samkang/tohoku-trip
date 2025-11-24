@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText 
+  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle 
 } from 'lucide-react';
 
 // Firebase SDK Imports
@@ -18,6 +18,7 @@ import DetailModal from './components/DetailModal';
 import ExpenseAddModal from './components/ExpenseAddModal';
 import ExpenseListModal from './components/ExpenseListModal';
 import EmergencyInfoModal from './components/EmergencyInfoModal';
+import LanguageCardModal from './components/LanguageCardModal';
 
 // ---------------------------------------------------------
 // 1. Firebase Configuration
@@ -60,6 +61,7 @@ const App = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showExpenseList, setShowExpenseList] = useState(false);
   const [showEmergencyInfo, setShowEmergencyInfo] = useState(false);
+  const [showLanguageCard, setShowLanguageCard] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -266,7 +268,7 @@ const App = () => {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 px-6 py-3 flex justify-around items-center z-40 max-w-md mx-auto safe-area-pb">
         <button 
           onClick={() => setShowEmergencyInfo(true)}
-          className="flex flex-col items-center text-stone-400 hover:text-stone-800 transition-colors"
+          className="flex flex-col items-center text-stone-400 hover:text-stone-800 transition-colors min-w-[40px]"
         >
           <AlertCircle className="w-6 h-6" />
           <span className="text-[10px] font-medium mt-1">緊急</span>
@@ -274,17 +276,17 @@ const App = () => {
 
         <button 
           onClick={() => setShowExpenseModal(true)}
-          className="-mt-8 bg-stone-900 text-white p-4 rounded-full shadow-xl border-4 border-[#FAF9F6] active:scale-95 transition-transform"
+          className="bg-stone-900 text-white p-4 rounded-full shadow-xl border-4 border-[#FAF9F6] active:scale-95 transition-transform mb-6"
         >
           <PlusCircle className="w-7 h-7" />
         </button>
 
         <button 
-          onClick={() => setShowExpenseList(true)}
-          className="flex flex-col items-center text-stone-400 hover:text-stone-800 transition-colors"
+          onClick={() => setShowLanguageCard(true)}
+          className="flex flex-col items-center text-stone-400 hover:text-indigo-600 transition-colors min-w-[40px]"
         >
-          <Receipt className="w-6 h-6" />
-          <span className="text-[10px] font-medium mt-1">帳本</span>
+          <MessageCircle className="w-6 h-6" />
+          <span className="text-[10px] font-medium mt-1">溝通</span>
         </button>
       </div>
 
@@ -293,6 +295,7 @@ const App = () => {
       {showExpenseModal && <ExpenseAddModal onClose={() => setShowExpenseModal(false)} onSave={saveExpense} />}
       {showExpenseList && <ExpenseListModal expenses={expenses} onClose={() => setShowExpenseList(false)} onDelete={deleteExpense} />}
       {showEmergencyInfo && <EmergencyInfoModal onClose={() => setShowEmergencyInfo(false)} />}
+      {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
 
     </div>
   );
