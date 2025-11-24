@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle 
+  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar 
 } from 'lucide-react';
 
 // Firebase SDK Imports
@@ -19,6 +19,7 @@ import ExpenseAddModal from './components/ExpenseAddModal';
 import ExpenseListModal from './components/ExpenseListModal';
 import EmergencyInfoModal from './components/EmergencyInfoModal';
 import LanguageCardModal from './components/LanguageCardModal';
+import BookingModal from './components/BookingModal';
 
 // ---------------------------------------------------------
 // 1. Firebase Configuration
@@ -62,6 +63,7 @@ const App = () => {
   const [showExpenseList, setShowExpenseList] = useState(false);
   const [showEmergencyInfo, setShowEmergencyInfo] = useState(false);
   const [showLanguageCard, setShowLanguageCard] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -160,20 +162,33 @@ const App = () => {
       {/* HEADER */}
       <header className="pt-12 pb-6 px-6 bg-white relative border-b border-stone-100">
         <div className="flex justify-between items-start mb-6">
-          <div>
-            <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase mb-1">Family Trip</p>
+          <div onClick={() => setShowBookingModal(true)} className="active:opacity-70 transition-opacity cursor-pointer">
+            <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase mb-1 flex items-center gap-1">
+              Family Trip <ChevronRight className="w-3 h-3" />
+            </p>
             <h1 className="text-3xl font-serif font-bold text-stone-900">東北初冬旅</h1>
             <div className="flex items-center mt-2 text-stone-500 text-xs font-medium">
               <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600 mr-2">2025</span>
               <span>11.25 - 11.29</span>
             </div>
           </div>
-          <div className="text-right cursor-pointer active:opacity-60 transition-opacity" onClick={() => setShowExpenseList(true)}>
-             <div className="text-xs text-stone-400 mb-1 flex items-center justify-end gap-1">
-               BUDGET <ChevronRight className="w-3 h-3" />
-             </div>
-             <div className="font-mono font-bold text-stone-800 border-b border-stone-200 pb-0.5">
-               ¥{totalSpent.toLocaleString()}
+          <div className="flex flex-col items-end gap-3">
+             {/* Order Dashboard Button */}
+             <button 
+               onClick={() => setShowBookingModal(true)}
+               className="bg-stone-100 p-2 rounded-full text-stone-500 hover:bg-stone-200 transition-colors"
+             >
+               <Calendar className="w-4 h-4" />
+             </button>
+             
+             {/* Budget Button */}
+             <div className="text-right cursor-pointer active:opacity-60 transition-opacity" onClick={() => setShowExpenseList(true)}>
+               <div className="text-xs text-stone-400 mb-1 flex items-center justify-end gap-1">
+                 BUDGET <ChevronRight className="w-3 h-3" />
+               </div>
+               <div className="font-mono font-bold text-stone-800 border-b border-stone-200 pb-0.5">
+                 ¥{totalSpent.toLocaleString()}
+               </div>
              </div>
           </div>
         </div>
@@ -222,6 +237,7 @@ const App = () => {
                     ${item.highlight ? 'bg-amber-400' : 'bg-stone-300'}`}></div>
 
                   {item.highlight ? (
+                    // Highlight Item (Golden Card)
                     <div className="bg-white rounded-xl p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-stone-100 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
                       <div className="flex justify-between items-start mb-2">
@@ -237,7 +253,31 @@ const App = () => {
                         {item.menu && <span className="text-[10px] bg-stone-100 text-stone-600 px-2 py-1 rounded">含推薦菜單</span>}
                       </div>
                     </div>
+                  ) : item.type === 'transport' && !item.highlight ? (
+                    // Transport Item (Ticket Style)
+                    <div className="bg-stone-100/50 rounded-lg p-3 border border-stone-200/60 flex justify-between items-center relative overflow-hidden">
+                      {/* Decorative punched holes */}
+                      <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#FAF9F6] rounded-full border border-stone-200"></div>
+                      <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#FAF9F6] rounded-full border border-stone-200"></div>
+                      
+                      <div className="flex-1 min-w-0 pl-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs font-bold text-stone-400">{item.time}</span>
+                          <CategoryIcon type={item.type} />
+                        </div>
+                        <h3 className="font-bold text-stone-700 text-sm mb-0.5">{item.title}</h3>
+                        {item.route && (
+                          <div className="flex items-center gap-1 text-[10px] text-stone-500 font-mono">
+                            <span>{item.route.from}</span>
+                            <span className="text-stone-300">➔</span>
+                            <span>{item.route.to}</span>
+                          </div>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-stone-300 flex-shrink-0 mr-2" />
+                    </div>
                   ) : (
+                    // Default Item
                     <div className="bg-white rounded-lg p-4 shadow-sm border border-stone-100 flex justify-between items-center">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -245,11 +285,6 @@ const App = () => {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-50 text-stone-500 uppercase tracking-wide">{item.type}</span>
                         </div>
                         <h3 className="font-bold text-stone-700 mb-0.5">{item.title}</h3>
-                        {item.type === 'transport' && item.route && (
-                          <p className="text-xs text-stone-500 truncate">
-                            {item.route.from} → {item.route.to} · {item.route.trainNo || item.route.busNo}
-                          </p>
-                        )}
                         {item.type !== 'transport' && item.desc && (
                           <p className="text-xs text-stone-500 line-clamp-1">{item.desc}</p>
                         )}
@@ -296,6 +331,7 @@ const App = () => {
       {showExpenseList && <ExpenseListModal expenses={expenses} onClose={() => setShowExpenseList(false)} onDelete={deleteExpense} />}
       {showEmergencyInfo && <EmergencyInfoModal onClose={() => setShowEmergencyInfo(false)} />}
       {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
+      {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}
 
     </div>
   );

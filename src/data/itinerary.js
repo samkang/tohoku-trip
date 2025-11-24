@@ -66,11 +66,12 @@ export const initialTripData = [
         story: "仙台必喝名物，車站內有許多販賣點。"
       },
       { 
-        id: "d1-5", type: "hotel", time: "22:00", title: "仙台大都會飯店", 
-        subTitle: "Hotel Metropolitan Sendai",
+        id: "d1-5", type: "hotel", time: "22:00", title: "Hotel Unisite Sendai", 
+        subTitle: "ユナイトサイト仙台",
         location: "仙台市青葉区中央1-1-1",
         phone: "022-268-2525",
-        reservationNo: "Agoda-5592831",
+        reservationNo: "Booking.com",
+        link: "https://www.booking.com/hotel/jp/hotel-unisite-sendai.zh-tw.html?aid=898224&app_hotel_id=1629859&checkin=2025-11-25&checkout=2025-11-26&from_sn=ios&group_adults=2&group_children=0&label=hotel_details-1L5CKt7%401763989437&no_rooms=1&req_adults=2&req_children=0&room1=A%2CA%2C",
         desc: "與仙台車站直結，交通最方便的選擇。建議住仙台車站西口附近。",
         highlight: false
       }
