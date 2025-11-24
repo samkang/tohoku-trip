@@ -1,10 +1,14 @@
 import React from 'react';
 import { 
-  X, Navigation, Phone, Globe, FileText, Utensils, Train, ChevronRight 
+  X, Navigation, Phone, Globe, FileText, Utensils, Train, ChevronRight, Search, Image, MapPin 
 } from 'lucide-react';
 
 const DetailModal = ({ item, onClose }) => {
   if (!item) return null;
+
+  // 檢查是否有豐富內容
+  const hasRichContent = item.story || item.menu || item.reservationNo || (item.type === 'transport' && item.route);
+  const hasLocation = !!item.location;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
@@ -34,6 +38,9 @@ const DetailModal = ({ item, onClose }) => {
             </h2>
             {item.subTitle && (
               <p className="text-stone-500 font-medium text-sm">{item.subTitle}</p>
+            )}
+            {item.desc && !hasRichContent && (
+               <p className="text-stone-600 text-sm mt-3 leading-relaxed">{item.desc}</p>
             )}
           </div>
 
@@ -85,8 +92,9 @@ const DetailModal = ({ item, onClose }) => {
             </div>
           )}
 
+          {/* Quick Actions Grid */}
           <div className="grid grid-cols-2 gap-3 mb-8">
-            {item.location && (
+            {item.location ? (
               <a 
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
                 target="_blank" rel="noreferrer"
@@ -95,7 +103,18 @@ const DetailModal = ({ item, onClose }) => {
                 <Navigation className="w-4 h-4" />
                 Google 導航
               </a>
+            ) : (
+              /* Fallback to search location by title if no specific address */
+              <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.title)}`}
+                target="_blank" rel="noreferrer"
+                className="flex items-center justify-center gap-2 bg-stone-800 text-white py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform"
+              >
+                <MapPin className="w-4 h-4" />
+                地圖搜尋
+              </a>
             )}
+            
             {item.phone && (
               <a 
                 href={`tel:${item.phone}`}
@@ -105,6 +124,7 @@ const DetailModal = ({ item, onClose }) => {
                 {item.phone}
               </a>
             )}
+            
             {/* Link Button for Orders/Reservations */}
             {item.link && (
               <a 
@@ -115,6 +135,28 @@ const DetailModal = ({ item, onClose }) => {
                 <Globe className="w-4 h-4" />
                 查看訂單資訊
               </a>
+            )}
+
+            {/* Google Search Buttons for Empty Items */}
+            {!item.link && !item.phone && (
+               <>
+                 <a 
+                    href={`https://www.google.com/search?q=${encodeURIComponent(item.title + ' 日本東北')}`}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center justify-center gap-2 bg-white border border-stone-200 text-stone-700 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform"
+                  >
+                    <Search className="w-4 h-4" />
+                    搜尋詳情
+                 </a>
+                 <a 
+                    href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(item.title + ' 日本東北')}`}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center justify-center gap-2 bg-white border border-stone-200 text-stone-700 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform"
+                  >
+                    <Image className="w-4 h-4" />
+                    查看圖片
+                 </a>
+               </>
             )}
           </div>
 
@@ -179,6 +221,14 @@ const DetailModal = ({ item, onClose }) => {
             </div>
           )}
 
+          {/* Fallback for empty content */}
+          {!hasRichContent && !item.desc && (
+             <div className="text-center py-10 px-4 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                <p className="text-stone-400 text-sm mb-2">此行程暫無詳細資訊</p>
+                <p className="text-stone-500 font-serif font-bold">盡情享受當下的探索樂趣吧！</p>
+             </div>
+          )}
+
           {item.location && (
             <div className="text-xs text-stone-400 text-center font-mono mt-8 border-t border-stone-100 pt-4">
               ADDR: {item.location}
@@ -191,4 +241,3 @@ const DetailModal = ({ item, onClose }) => {
 };
 
 export default DetailModal;
-
