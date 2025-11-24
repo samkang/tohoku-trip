@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar 
+  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar, Map 
 } from 'lucide-react';
 
 // Firebase SDK Imports
@@ -20,6 +20,7 @@ import ExpenseListModal from './components/ExpenseListModal';
 import EmergencyInfoModal from './components/EmergencyInfoModal';
 import LanguageCardModal from './components/LanguageCardModal';
 import BookingModal from './components/BookingModal';
+import ItineraryMapModal from './components/ItineraryMapModal';
 
 // ---------------------------------------------------------
 // 1. Firebase Configuration
@@ -64,6 +65,7 @@ const App = () => {
   const [showEmergencyInfo, setShowEmergencyInfo] = useState(false);
   const [showLanguageCard, setShowLanguageCard] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showItineraryMap, setShowItineraryMap] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -162,10 +164,19 @@ const App = () => {
       {/* HEADER */}
       <header className="pt-12 pb-6 px-6 bg-white relative border-b border-stone-100">
         <div className="flex justify-between items-start mb-6">
-          <div onClick={() => setShowBookingModal(true)} className="active:opacity-70 transition-opacity cursor-pointer">
-            <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase mb-1 flex items-center gap-1">
-              Family Trip <ChevronRight className="w-3 h-3" />
-            </p>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase flex items-center gap-1">
+                Family Trip <ChevronRight className="w-3 h-3" />
+              </p>東北初旅遊 5 日
+              <button 
+                onClick={() => setShowItineraryMap(true)}
+                className="bg-purple-100 text-purple-600 p-1.5 rounded-full hover:bg-purple-200 transition-colors"
+                title="查看行程導覽圖"
+              >
+                <Map className="w-3 h-3" />
+              </button>
+            </div>
             <h1 className="text-3xl font-serif font-bold text-stone-900">東北初冬旅</h1>
             <div className="flex items-center mt-2 text-stone-500 text-xs font-medium">
               <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600 mr-2">2025</span>
@@ -332,6 +343,7 @@ const App = () => {
       {showEmergencyInfo && <EmergencyInfoModal onClose={() => setShowEmergencyInfo(false)} />}
       {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
       {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}
+      {showItineraryMap && <ItineraryMapModal onClose={() => setShowItineraryMap(false)} />}
 
     </div>
   );
