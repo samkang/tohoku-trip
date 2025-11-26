@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon } from 'lucide-react';
+import { EXCHANGE_RATE, TWD_TO_JPY } from '../utils/constants';
 
 const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const isEditMode = !!expense;
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
   const [date, setDate] = useState('');
+  const [currency, setCurrency] = useState('JPY'); // 'JPY' 或 'TWD'
 
   // 初始化表單資料
   useEffect(() => {
     if (expense) {
+      // 編輯模式：資料庫中的金額是日幣，預設顯示為日幣
       setAmount(expense.amount?.toString() || '');
       setDesc(expense.desc || '');
+      setCurrency(expense.currency || 'JPY'); // 如果有記錄原始幣別，使用它；否則預設日幣
       // 將日期轉換為 YYYY-MM-DD 格式供 input[type="date"] 使用
       if (expense.date) {
         const dateStr = expense.date.includes('-') 
@@ -24,22 +28,54 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
         setDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
       }
     } else {
-      // 新增模式：使用今天日期
+      // 新增模式：使用今天日期，預設日幣
       const today = new Date();
       setDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
+      setCurrency('JPY');
     }
   }, [expense]);
 
   const handleSubmit = () => {
     if (!amount) return;
+    
+    // 統一轉換為日幣儲存
+    let amountJPY;
+    if (currency === 'TWD') {
+      // 台幣轉日幣
+      amountJPY = Math.round(parseFloat(amount) * TWD_TO_JPY);
+    } else {
+      // 日幣直接使用
+      amountJPY = parseInt(amount);
+    }
+    
     const payload = { 
-      amount: parseInt(amount), 
+      amount: amountJPY, // 統一儲存為日幣
+      currency: currency, // 記錄原始輸入幣別（用於顯示）
       desc: desc || '一般消費',
       date: date || new Date().toISOString().split('T')[0]
     };
     onSave(payload, isEditMode ? expense.id : null);
     onClose();
   };
+
+  // 計算轉換後的金額（用於顯示）
+  const getConvertedAmount = () => {
+    if (!amount) return { jpy: 0, twd: 0 };
+    const numAmount = parseFloat(amount) || 0;
+    if (currency === 'TWD') {
+      return {
+        jpy: Math.round(numAmount * TWD_TO_JPY),
+        twd: numAmount
+      };
+    } else {
+      return {
+        jpy: numAmount,
+        twd: Math.round(numAmount * EXCHANGE_RATE)
+      };
+    }
+  };
+
+  const converted = getConvertedAmount();
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/60 backdrop-blur-sm animate-in fade-in">
@@ -63,9 +99,63 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
         </div>
         
         <div className="mb-6">
-          <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">金額 (JPY)</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">金額</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // 切換幣別時，轉換金額
+                  if (amount) {
+                    const numAmount = parseFloat(amount) || 0;
+                    if (currency === 'JPY') {
+                      // 從日幣切換到台幣
+                      setAmount(Math.round(numAmount * EXCHANGE_RATE).toString());
+                    } else {
+                      // 從台幣切換到日幣
+                      setAmount(Math.round(numAmount * TWD_TO_JPY).toString());
+                    }
+                  }
+                  setCurrency(currency === 'JPY' ? 'TWD' : 'JPY');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                  currency === 'JPY'
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                JPY
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // 切換幣別時，轉換金額
+                  if (amount) {
+                    const numAmount = parseFloat(amount) || 0;
+                    if (currency === 'JPY') {
+                      // 從日幣切換到台幣
+                      setAmount(Math.round(numAmount * EXCHANGE_RATE).toString());
+                    } else {
+                      // 從台幣切換到日幣
+                      setAmount(Math.round(numAmount * TWD_TO_JPY).toString());
+                    }
+                  }
+                  setCurrency(currency === 'TWD' ? 'JPY' : 'TWD');
+                }}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                  currency === 'TWD'
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                TWD
+              </button>
+            </div>
+          </div>
           <div className="flex items-baseline mt-2 border-b-2 border-stone-200 pb-2 focus-within:border-stone-800 transition-colors">
-            <span className="text-2xl font-serif mr-2 text-stone-400">¥</span>
+            <span className="text-2xl font-serif mr-2 text-stone-400">
+              {currency === 'JPY' ? '¥' : 'NT$'}
+            </span>
             <input 
               type="number" 
               value={amount}
@@ -76,7 +166,11 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
             />
           </div>
           <div className="mt-2 text-right text-xs text-stone-400 font-mono">
-            ≈ NT$ {amount ? Math.round(amount * 0.215).toLocaleString() : 0}
+            {currency === 'JPY' ? (
+              <>≈ NT$ {converted.twd.toLocaleString()}</>
+            ) : (
+              <>≈ ¥ {converted.jpy.toLocaleString()}</>
+            )}
           </div>
         </div>
 

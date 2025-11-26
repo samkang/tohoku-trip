@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2 } from 'lucide-react';
+import { jpyToTwd } from '../utils/constants';
 
 const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
@@ -28,7 +29,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
              </div>
              <p className="text-stone-400 text-xs font-medium mb-1">總金額 (台幣估算)</p>
              <p className="text-3xl font-mono font-bold tracking-tight">
-               NT$ {Math.round(totalSpent * 0.215).toLocaleString()}
+               NT$ {jpyToTwd(totalSpent).toLocaleString()}
              </p>
              <div className="mt-4 pt-4 border-t border-stone-700 flex justify-between items-center">
                <span className="text-xs text-stone-400">日幣總額</span>
