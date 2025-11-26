@@ -286,7 +286,6 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
               onBlur={handleInputBlur}
               className="w-full text-4xl font-bold text-stone-900 outline-none placeholder-stone-200 bg-transparent font-mono"
               placeholder="0"
-              autoFocus
             />
           </div>
           <div className="mt-2 text-right text-xs text-stone-400 font-mono">
