@@ -84,10 +84,23 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   // 初始化表單資料
   useEffect(() => {
     if (expense) {
-      // 編輯模式：資料庫中的金額是日幣，預設顯示為日幣
-      setAmount(expense.amount?.toString() || '');
+      // 編輯模式：根據原始幣別轉換回顯示值
+      const originalCurrency = expense.currency || 'JPY';
+      const amountInDB = expense.amount || 0; // 資料庫中的金額（統一為日幣）
+      
+      if (originalCurrency === 'TWD') {
+        // 原始是台幣，將日幣值轉換回台幣顯示
+        const twdAmount = Math.round(amountInDB * EXCHANGE_RATE);
+        setAmount(twdAmount.toString());
+        setCurrency('TWD');
+      } else {
+        // 原始是日幣，直接顯示日幣值
+        setAmount(amountInDB.toString());
+        setCurrency('JPY');
+      }
+      
       setDesc(expense.desc || '');
-      setCurrency(expense.currency || 'JPY'); // 如果有記錄原始幣別，使用它；否則預設日幣
+      
       // 將日期轉換為 YYYY-MM-DD 格式供 input[type="date"] 使用
       if (expense.date) {
         const dateStr = expense.date.includes('-') 
