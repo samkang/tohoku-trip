@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar as CalendarIcon } from 'lucide-react';
-import { EXCHANGE_RATE, TWD_TO_JPY } from '../utils/constants';
+import { EXCHANGE_RATE, TWD_TO_JPY, EXPENSE_CATEGORIES, DEFAULT_CATEGORY } from '../utils/constants';
 
 const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const isEditMode = !!expense;
@@ -8,6 +8,7 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const [desc, setDesc] = useState('');
   const [date, setDate] = useState('');
   const [currency, setCurrency] = useState('JPY'); // 'JPY' 或 'TWD'
+  const [category, setCategory] = useState(DEFAULT_CATEGORY); // 'food', 'clothing', 'accommodation', 'transport'
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 0
   );
@@ -100,6 +101,7 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
       }
       
       setDesc(expense.desc || '');
+      setCategory(expense.category || DEFAULT_CATEGORY); // 載入現有分類，沒有則預設
       
       // 將日期轉換為 YYYY-MM-DD 格式供 input[type="date"] 使用
       if (expense.date) {
@@ -113,10 +115,11 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
         setDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
       }
     } else {
-      // 新增模式：使用今天日期，預設日幣
+      // 新增模式：使用今天日期，預設日幣和分類
       const today = new Date();
       setDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
       setCurrency('JPY');
+      setCategory(DEFAULT_CATEGORY);
     }
   }, [expense]);
 
@@ -136,6 +139,7 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
     const payload = { 
       amount: amountJPY, // 統一儲存為日幣
       currency: currency, // 記錄原始輸入幣別（用於顯示）
+      category: category, // 分類
       desc: desc || '一般消費',
       date: date || new Date().toISOString().split('T')[0]
     };
@@ -168,7 +172,7 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
     : '90vh';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/60 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-stone-900/60 backdrop-blur-sm animate-in fade-in">
       <div 
         ref={modalRef}
         className="bg-white w-full max-w-md rounded-t-3xl p-6 animate-in slide-in-from-bottom-10 transition-transform duration-300"
@@ -202,7 +206,8 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">金額</label>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 flex-wrap justify-end">
+              {/* 幣別按鈕 */}
               <button
                 type="button"
                 onClick={() => {
@@ -251,6 +256,22 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
               >
                 TWD
               </button>
+              
+              {/* 分類按鈕 */}
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setCategory(cat.value)}
+                  className={`px-2 py-1 rounded-full text-xs font-bold transition-colors ${
+                    category === cat.value
+                      ? 'bg-stone-900 text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex items-baseline mt-2 border-b-2 border-stone-200 pb-2 focus-within:border-stone-800 transition-colors">

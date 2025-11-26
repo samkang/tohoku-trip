@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2, BarChart3, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { jpyToTwd } from '../utils/constants';
+import { jpyToTwd, EXPENSE_CATEGORIES } from '../utils/constants';
+
+// 取得分類標籤
+const getCategoryLabel = (category) => {
+  const cat = EXPENSE_CATEGORIES.find(c => c.value === category);
+  return cat ? cat.label : '食';
+};
 
 const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list' 或 'summary'
@@ -93,6 +99,17 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
       return acc;
     }, { JPY: 0, TWD: 0 });
 
+    // 分類統計
+    const categoryStats = expenses.reduce((acc, exp) => {
+      const cat = exp.category || 'food';
+      if (!acc[cat]) {
+        acc[cat] = { count: 0, total: 0 };
+      }
+      acc[cat].count += 1;
+      acc[cat].total += exp.amount;
+      return acc;
+    }, {});
+
     return {
       totalCount: expenses.length,
       totalDays: totalDays,
@@ -102,7 +119,8 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
       minTransaction,
       dateRange: { start: startDate, end: endDate },
       dailyExpenses,
-      currencyStats
+      currencyStats,
+      categoryStats
     };
   }, [expenses, totalSpent]);
 
@@ -194,14 +212,24 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                     )}
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 flex justify-between items-center group">
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-stone-800 text-sm mb-1">{ex.desc}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-bold text-stone-800 text-sm">{ex.desc}</p>
+                          <span className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded font-medium">
+                            {getCategoryLabel(ex.category)}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="w-3 h-3 text-stone-400" />
                           <p className="text-[10px] text-stone-400 font-mono">{formatDate(ex.date)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
-                        <span className="font-mono font-bold text-stone-700 whitespace-nowrap">¥{ex.amount.toLocaleString()}</span>
+                        <div className="text-right">
+                          <div className="flex items-baseline gap-1">
+                            <span className="font-mono font-bold text-stone-900 text-sm">¥{ex.amount.toLocaleString()}</span>
+                            <span className="font-mono text-xs text-stone-400">/ NT${jpyToTwd(ex.amount).toLocaleString()}</span>
+                          </div>
+                        </div>
                         <button 
                           onClick={() => onEdit && onEdit(ex)}
                           className="text-stone-300 hover:text-blue-500 p-2 transition-colors"
@@ -300,7 +328,10 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                             <p className="font-mono font-bold text-stone-900">
                               ¥{statistics.maxTransaction.amount.toLocaleString()}
                             </p>
-                            <p className="text-xs text-stone-500">{statistics.maxTransaction.desc}</p>
+                            <p className="text-xs text-stone-400 font-mono">
+                              NT$ {jpyToTwd(statistics.maxTransaction.amount).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-stone-500 mt-0.5">{statistics.maxTransaction.desc}</p>
                           </div>
                         </div>
                       )}
@@ -314,7 +345,10 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                             <p className="font-mono font-bold text-stone-900">
                               ¥{statistics.minTransaction.amount.toLocaleString()}
                             </p>
-                            <p className="text-xs text-stone-500">{statistics.minTransaction.desc}</p>
+                            <p className="text-xs text-stone-400 font-mono">
+                              NT$ {jpyToTwd(statistics.minTransaction.amount).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-stone-500 mt-0.5">{statistics.minTransaction.desc}</p>
                           </div>
                         </div>
                       )}
@@ -350,10 +384,15 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-stone-600 font-medium">{formatDate(day.date)}</span>
                                 <div className="text-right">
-                                  <span className="font-mono font-bold text-stone-900">
-                                    ¥{day.total.toLocaleString()}
-                                  </span>
-                                  <span className="text-stone-400 ml-2">({day.count}筆)</span>
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="font-mono font-bold text-stone-900">
+                                      ¥{day.total.toLocaleString()}
+                                    </span>
+                                    <span className="text-stone-400 font-mono text-[10px]">
+                                      / NT${jpyToTwd(day.total).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <span className="text-stone-400 text-[10px]">({day.count}筆)</span>
                                 </div>
                               </div>
                               <div className="w-full bg-stone-100 rounded-full h-2">
@@ -361,6 +400,47 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                                   className="bg-stone-800 h-2 rounded-full transition-all"
                                   style={{ width: `${barWidth}%` }}
                                 ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 分類統計 */}
+                  {Object.keys(statistics.categoryStats).length > 0 && (
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100">
+                      <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">
+                        分類統計
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {EXPENSE_CATEGORIES.map((cat) => {
+                          const stats = statistics.categoryStats[cat.value] || { count: 0, total: 0 };
+                          const percentage = totalSpent > 0 ? Math.round((stats.total / totalSpent) * 100) : 0;
+                          
+                          return (
+                            <div key={cat.value} className="p-3 bg-stone-50 rounded-lg">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-bold text-stone-800">{cat.label}</span>
+                                <span className="text-xs text-stone-500">{stats.count}筆</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="font-mono font-bold text-stone-900 text-base">
+                                  ¥{stats.total.toLocaleString()}
+                                </p>
+                                <p className="text-xs text-stone-400 font-mono">
+                                  NT${jpyToTwd(stats.total).toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="mt-2">
+                                <div className="w-full bg-stone-200 rounded-full h-1.5">
+                                  <div
+                                    className="bg-stone-800 h-1.5 rounded-full transition-all"
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                                <p className="text-xs text-stone-500 mt-1">{percentage}%</p>
                               </div>
                             </div>
                           );

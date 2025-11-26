@@ -438,6 +438,8 @@ const App = () => {
           onClose={() => {
             setShowExpenseModal(false);
             setEditingExpense(null);
+            // 編輯完成後，如果 ExpenseListModal 沒有開啟，不需要做任何事
+            // 如果 ExpenseListModal 有開啟，它會自動更新（因為 expenses 狀態已更新）
           }} 
           onSave={saveExpense}
           expense={editingExpense}
@@ -450,7 +452,7 @@ const App = () => {
           onDelete={deleteExpense}
           onEdit={(expense) => {
             setEditingExpense(expense);
-            setShowExpenseList(false);
+            // 不關閉 ExpenseListModal，讓編輯後可以繼續停留在帳本畫面
             setShowExpenseModal(true);
           }}
         />
