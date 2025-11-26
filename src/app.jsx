@@ -6,7 +6,7 @@ import {
 // Firebase SDK Imports
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, addDoc, deleteDoc, 
+  getFirestore, collection, addDoc, deleteDoc, updateDoc,
   onSnapshot, query, orderBy, doc 
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
@@ -48,6 +48,12 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// 調試：確認 Firebase 初始化
+console.log('🔥 Firebase 已初始化:', {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain
+});
+
 // 在 Canvas 預覽環境中使用環境變數提供的 appId，確保多人協作時資料隔離
 // 若使用者自行部署，則可使用固定的 Collection Name
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'tohoku-trip-preview';
@@ -69,6 +75,7 @@ const App = () => {
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
 
   // Weather API
   useEffect(() => {
@@ -101,16 +108,29 @@ const App = () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try {
           await signInWithCustomToken(auth, __initial_auth_token);
+          console.log('✅ Firebase 匿名登入成功 (Custom Token)');
         } catch(e) {
-          console.error("Custom token login failed", e);
+          console.error("❌ Custom token login failed", e);
           signInAnonymously(auth).catch(console.error);
         }
       } else {
-        signInAnonymously(auth).catch(console.error);
+        try {
+          await signInAnonymously(auth);
+          console.log('✅ Firebase 匿名登入成功');
+        } catch(e) {
+          console.error('❌ Firebase 匿名登入失敗:', e);
+        }
       }
     };
     initAuth();
-    return auth.onAuthStateChanged(setUser);
+    return auth.onAuthStateChanged((user) => {
+      setUser(user);
+      if (user) {
+        console.log('✅ Firebase 使用者已登入:', user.uid);
+      } else {
+        console.log('⚠️ Firebase 使用者未登入');
+      }
+    });
   }, []);
 
   // Data Sync (Updated for Preview & Vercel)
@@ -119,24 +139,65 @@ const App = () => {
     let q;
     
     if (typeof __app_id !== 'undefined') {
-       // 預覽環境路徑
+       // 預覽環境路徑（無法使用多個 orderBy，需要在客戶端排序）
        q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME));
     } else {
-       // Vercel 正式環境路徑
-       q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+       // Vercel 正式環境路徑：先按日期降序（單一排序避免需要複合索引）
+       // 注意：如果需要複合索引，可以在 Firebase Console 建立
+       // 目前改為客戶端排序以確保立即運作
+       q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
     }
 
-    return onSnapshot(q, (snap) => {
-      setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    return onSnapshot(q, 
+      (snap) => {
+        const expensesData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // 統一在客戶端排序：先按日期降序，再按 order 升序
+        expensesData.sort((a, b) => {
+          // 先按日期降序
+          if (a.date !== b.date) {
+            return b.date?.localeCompare(a.date) || 0;
+          }
+          // 同一天內按 order 升序
+          return (a.order || 0) - (b.order || 0);
+        });
+        
+        console.log('✅ Firebase 資料同步成功，共', expensesData.length, '筆費用');
+        setExpenses(expensesData);
+      },
+      (error) => {
+        console.error('❌ Firebase 資料同步失敗:', error);
+      }
+    );
   }, [user]);
 
-  const saveExpense = async (data) => {
+  const saveExpense = async (data, expenseId = null) => {
     if (!user) return;
-    // 使用 ISO 格式儲存日期，方便後續格式化顯示
+    
+    // 如果是編輯模式
+    if (expenseId) {
+      await updateExpense(expenseId, data);
+      return;
+    }
+
+    // 新增模式：使用 ISO 格式儲存日期
     const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const payload = { ...data, date: dateStr, createdAt: Date.now(), userId: user.uid };
+    const dateStr = data.date || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // 計算 order：找到同一天的最後一筆 order，+1
+    const sameDateExpenses = expenses.filter(e => e.date === dateStr);
+    const maxOrder = sameDateExpenses.length > 0 
+      ? Math.max(...sameDateExpenses.map(e => e.order || 0))
+      : 0;
+    
+    const payload = { 
+      ...data, 
+      date: dateStr, 
+      order: maxOrder + 1,
+      createdAt: Date.now(), 
+      userId: user.uid 
+    };
+    
     try {
       if (typeof __app_id !== 'undefined') {
          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME), payload);
@@ -144,6 +205,37 @@ const App = () => {
          await addDoc(collection(db, COLLECTION_NAME), payload);
       }
     } catch(e) { console.error(e); }
+  };
+
+  const updateExpense = async (id, data) => {
+    if (!user) return;
+    
+    try {
+      const expense = expenses.find(e => e.id === id);
+      if (!expense) return;
+
+      const updates = { ...data };
+      const dateChanged = data.date && data.date !== expense.date;
+      
+      // 如果日期變更，需要重新計算 order
+      if (dateChanged) {
+        const sameDateExpenses = expenses.filter(e => e.date === data.date && e.id !== id);
+        const maxOrder = sameDateExpenses.length > 0 
+          ? Math.max(...sameDateExpenses.map(e => e.order || 0))
+          : 0;
+        updates.order = maxOrder + 1;
+      }
+      
+      updates.updatedAt = Date.now();
+      
+      const docRef = typeof __app_id !== 'undefined'
+        ? doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, id)
+        : doc(db, COLLECTION_NAME, id);
+      
+      await updateDoc(docRef, updates);
+    } catch(e) { 
+      console.error('Update expense error:', e); 
+    }
   };
 
   const deleteExpense = async (id) => {
@@ -321,7 +413,10 @@ const App = () => {
         </button>
 
         <button 
-          onClick={() => setShowExpenseModal(true)}
+          onClick={() => {
+            setEditingExpense(null);
+            setShowExpenseModal(true);
+          }}
           className="bg-stone-900 text-white p-4 rounded-full shadow-xl border-4 border-[#FAF9F6] active:scale-95 transition-transform mb-6"
         >
           <PlusCircle className="w-7 h-7" />
@@ -338,8 +433,28 @@ const App = () => {
 
       {/* MODALS */}
       {selectedItem && <DetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
-      {showExpenseModal && <ExpenseAddModal onClose={() => setShowExpenseModal(false)} onSave={saveExpense} />}
-      {showExpenseList && <ExpenseListModal expenses={expenses} onClose={() => setShowExpenseList(false)} onDelete={deleteExpense} />}
+      {showExpenseModal && (
+        <ExpenseAddModal 
+          onClose={() => {
+            setShowExpenseModal(false);
+            setEditingExpense(null);
+          }} 
+          onSave={saveExpense}
+          expense={editingExpense}
+        />
+      )}
+      {showExpenseList && (
+        <ExpenseListModal 
+          expenses={expenses} 
+          onClose={() => setShowExpenseList(false)} 
+          onDelete={deleteExpense}
+          onEdit={(expense) => {
+            setEditingExpense(expense);
+            setShowExpenseList(false);
+            setShowExpenseModal(true);
+          }}
+        />
+      )}
       {showEmergencyInfo && <EmergencyInfoModal onClose={() => setShowEmergencyInfo(false)} />}
       {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
       {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}

@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2 } from 'lucide-react';
 
-const ExpenseListModal = ({ expenses, onClose, onDelete }) => {
+const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
 
   return (
@@ -101,11 +101,19 @@ const ExpenseListModal = ({ expenses, onClose, onDelete }) => {
                           <p className="text-[10px] text-stone-400 font-mono">{formatDate(ex.date)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 ml-4">
+                      <div className="flex items-center gap-2 ml-4">
                         <span className="font-mono font-bold text-stone-700 whitespace-nowrap">¥{ex.amount.toLocaleString()}</span>
+                        <button 
+                          onClick={() => onEdit && onEdit(ex)}
+                          className="text-stone-300 hover:text-blue-500 p-2 transition-colors"
+                          title="編輯"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                         <button 
                           onClick={() => onDelete(ex.id)}
                           className="text-stone-300 hover:text-red-400 p-2 -mr-2 transition-colors"
+                          title="刪除"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
