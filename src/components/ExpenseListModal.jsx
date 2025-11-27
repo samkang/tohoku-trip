@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2, BarChart3, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2, BarChart3, TrendingUp, TrendingDown, DollarSign, ArrowLeft } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import { getCategoryLabel, jpyToTwd, getExchangeRate } from '../utils/userPreferences';
 
 const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list' 或 'summary'
   const [exchangeRate, setExchangeRate] = useState(getExchangeRate()); // 動態匯率
+  const [selectedCategory, setSelectedCategory] = useState(null); // 選中的分類，null 表示顯示所有分類統計
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
 
   // 監聽偏好更新事件
@@ -171,7 +172,10 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
         <div className="px-6 pt-4">
           <div className="flex gap-2 bg-stone-100 p-1 rounded-xl">
             <button
-              onClick={() => setActiveTab('list')}
+              onClick={() => {
+                setActiveTab('list');
+                setSelectedCategory(null); // 切換到消費記錄時重置選中的分類
+              }}
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
                 activeTab === 'list'
                   ? 'bg-white text-stone-900 shadow-sm'
@@ -181,7 +185,10 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
               消費記錄
             </button>
             <button
-              onClick={() => setActiveTab('summary')}
+              onClick={() => {
+                setActiveTab('summary');
+                setSelectedCategory(null); // 切換到摘要報告時重置選中的分類
+              }}
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
                 activeTab === 'summary'
                   ? 'bg-white text-stone-900 shadow-sm'
@@ -268,6 +275,125 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                 <div className="text-center py-10 text-stone-400 text-sm">
                   尚無消費記錄，無法顯示摘要
                 </div>
+              ) : selectedCategory ? (
+                // 顯示選中分類的詳細消費列表
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <button
+                      onClick={() => setSelectedCategory(null)}
+                      className="bg-stone-100 p-2 rounded-full hover:bg-stone-200 transition-colors"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-stone-600" />
+                    </button>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-400 uppercase tracking-wider">
+                        分類詳細
+                      </h3>
+                      <h4 className="text-xl font-serif font-bold text-stone-900">
+                        {getCategoryLabel(selectedCategory)}
+                      </h4>
+                    </div>
+                  </div>
+                  
+                  {(() => {
+                    const categoryExpenses = expenses
+                      .filter(exp => (exp.category || 'food') === selectedCategory)
+                      .sort((a, b) => {
+                        // 先按日期排序，再按金額排序
+                        if (a.date !== b.date) {
+                          return b.date.localeCompare(a.date);
+                        }
+                        return b.amount - a.amount;
+                      });
+                    
+                    const categoryTotal = categoryExpenses.reduce((acc, cur) => acc + cur.amount, 0);
+                    const categoryStats = statistics.categoryStats[selectedCategory] || { count: 0, total: 0 };
+                    
+                    return (
+                      <>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 mb-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs text-stone-400 mb-1">總計</p>
+                              <p className="text-2xl font-mono font-bold text-stone-900">
+                                ¥{categoryTotal.toLocaleString()}
+                              </p>
+                              <p className="text-xs text-stone-400 font-mono mt-1">
+                                NT$ {jpyToTwd(categoryTotal).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-stone-400 mb-1">筆數</p>
+                              <p className="text-2xl font-mono font-bold text-stone-900">
+                                {categoryStats.count}
+                              </p>
+                              <p className="text-xs text-stone-500 mt-1">筆</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {categoryExpenses.length === 0 ? (
+                          <div className="text-center py-10 text-stone-400 text-sm">
+                            此分類尚無消費記錄
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {categoryExpenses.map((ex, idx) => {
+                              const showDateHeader = idx === 0 || categoryExpenses[idx - 1].date !== ex.date;
+                              
+                              return (
+                                <div key={ex.id}>
+                                  {showDateHeader && (
+                                    <div className="mb-2 mt-4 first:mt-0">
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-[1px] bg-stone-200"></div>
+                                        <span className="text-xs font-bold text-stone-500 px-2">
+                                          {formatDate(ex.date)}
+                                        </span>
+                                        <div className="flex-1 h-[1px] bg-stone-200"></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 flex justify-between items-center group">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-stone-800 text-sm">{ex.desc}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <CalendarIcon className="w-3 h-3 text-stone-400" />
+                                        <p className="text-[10px] text-stone-400 font-mono">{formatDate(ex.date)}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 ml-4">
+                                      <div className="text-right">
+                                        <div className="flex items-baseline gap-1">
+                                          <span className="font-mono font-bold text-stone-900 text-sm">¥{ex.amount.toLocaleString()}</span>
+                                          <span className="font-mono text-xs text-stone-400">/ NT${jpyToTwd(ex.amount).toLocaleString()}</span>
+                                        </div>
+                                      </div>
+                                      <button 
+                                        onClick={() => onEdit && onEdit(ex)}
+                                        className="text-stone-300 hover:text-blue-500 p-2 transition-colors"
+                                        title="編輯"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => onDelete(ex.id)}
+                                        className="text-stone-300 hover:text-red-400 p-2 -mr-2 transition-colors"
+                                        title="刪除"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
               ) : (
                 <>
                   {/* 基本統計 */}
@@ -318,50 +444,6 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                       <p className="text-xs text-stone-500 mt-1">
                         NT$ {jpyToTwd(statistics.avgPerTransaction).toLocaleString()}
                       </p>
-                    </div>
-                  </div>
-
-                  {/* 單筆消費統計 */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100">
-                    <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      單筆消費統計
-                    </h4>
-                    <div className="space-y-2">
-                      {statistics.maxTransaction && (
-                        <div className="flex justify-between items-center p-2 bg-green-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-green-600" />
-                            <span className="text-sm text-stone-700">最高</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-mono font-bold text-stone-900">
-                              ¥{statistics.maxTransaction.amount.toLocaleString()}
-                            </p>
-                            <p className="text-xs text-stone-400 font-mono">
-                              NT$ {jpyToTwd(statistics.maxTransaction.amount).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-stone-500 mt-0.5">{statistics.maxTransaction.desc}</p>
-                          </div>
-                        </div>
-                      )}
-                      {statistics.minTransaction && (
-                        <div className="flex justify-between items-center p-2 bg-blue-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <TrendingDown className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm text-stone-700">最低</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-mono font-bold text-stone-900">
-                              ¥{statistics.minTransaction.amount.toLocaleString()}
-                            </p>
-                            <p className="text-xs text-stone-400 font-mono">
-                              NT$ {jpyToTwd(statistics.minTransaction.amount).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-stone-500 mt-0.5">{statistics.minTransaction.desc}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -432,7 +514,16 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                           const displayLabel = getCategoryLabel(cat.value);
                           
                           return (
-                            <div key={cat.value} className="p-3 bg-stone-50 rounded-lg">
+                            <button
+                              key={cat.value}
+                              onClick={() => setSelectedCategory(cat.value)}
+                              className={`p-3 bg-stone-50 rounded-lg transition-colors text-left active:scale-95 ${
+                                stats.count === 0
+                                  ? 'opacity-50 cursor-not-allowed'
+                                  : 'hover:bg-stone-100 cursor-pointer'
+                              }`}
+                              disabled={stats.count === 0}
+                            >
                               <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm font-bold text-stone-800">{displayLabel}</span>
                                 <span className="text-xs text-stone-500">{stats.count}筆</span>
@@ -454,7 +545,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                                 </div>
                                 <p className="text-xs text-stone-500 mt-1">{percentage}%</p>
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
