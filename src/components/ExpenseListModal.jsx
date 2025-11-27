@@ -106,9 +106,14 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
     // 幣別統計
     const currencyStats = expenses.reduce((acc, exp) => {
       const currency = exp.currency || 'JPY';
-      acc[currency] = (acc[currency] || 0) + 1;
+      const amount = exp.amount || 0;
+      if (!acc[currency]) {
+        acc[currency] = { count: 0, total: 0 };
+      }
+      acc[currency].count += 1;
+      acc[currency].total += amount;
       return acc;
-    }, { JPY: 0, TWD: 0 });
+    }, { JPY: { count: 0, total: 0 }, TWD: { count: 0, total: 0 } });
 
     // 分類統計
     const categoryStats = expenses.reduce((acc, exp) => {
@@ -553,25 +558,40 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                   )}
 
                   {/* 幣別統計 */}
-                  {(statistics.currencyStats.JPY > 0 || statistics.currencyStats.TWD > 0) && (
+                  {(statistics.currencyStats.JPY.count > 0 || statistics.currencyStats.TWD.count > 0) && (
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100">
                       <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
                         幣別統計
                       </h4>
-                      <div className="flex gap-4">
-                        {statistics.currencyStats.JPY > 0 && (
-                          <div className="flex-1">
-                            <p className="text-xs text-stone-500 mb-1">日幣輸入</p>
+                      <div className="flex gap-4 flex-wrap">
+                        {statistics.currencyStats.JPY.count > 0 && (
+                          <div className="flex-1 min-w-[140px]">
+                            <p className="text-xs text-stone-500 mb-1 flex items-center justify-between">
+                              <span>日幣輸入</span>
+                              <span className="text-[10px] text-stone-400">{statistics.currencyStats.JPY.count} 筆</span>
+                            </p>
                             <p className="text-lg font-mono font-bold text-stone-900">
-                              {statistics.currencyStats.JPY} 筆
+                              ¥{statistics.currencyStats.JPY.total.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-stone-500 mt-1">
+                              佔比 {totalSpent > 0 ? Math.round((statistics.currencyStats.JPY.total / totalSpent) * 100) : 0}%
                             </p>
                           </div>
                         )}
-                        {statistics.currencyStats.TWD > 0 && (
-                          <div className="flex-1">
-                            <p className="text-xs text-stone-500 mb-1">台幣輸入</p>
+                        {statistics.currencyStats.TWD.count > 0 && (
+                          <div className="flex-1 min-w-[140px]">
+                            <p className="text-xs text-stone-500 mb-1 flex items-center justify-between">
+                              <span>台幣輸入</span>
+                              <span className="text-[10px] text-stone-400">{statistics.currencyStats.TWD.count} 筆</span>
+                            </p>
                             <p className="text-lg font-mono font-bold text-stone-900">
-                              {statistics.currencyStats.TWD} 筆
+                              NT$ {jpyToTwd(statistics.currencyStats.TWD.total).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-stone-400 font-mono">
+                              ≈ ¥{statistics.currencyStats.TWD.total.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-stone-500 mt-1">
+                              佔比 {totalSpent > 0 ? Math.round((statistics.currencyStats.TWD.total / totalSpent) * 100) : 0}%
                             </p>
                           </div>
                         )}
