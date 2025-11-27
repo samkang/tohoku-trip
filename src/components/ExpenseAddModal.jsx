@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar as CalendarIcon } from 'lucide-react';
-import { EXCHANGE_RATE, TWD_TO_JPY, EXPENSE_CATEGORIES, DEFAULT_CATEGORY } from '../utils/constants';
+import { EXPENSE_CATEGORIES, DEFAULT_CATEGORY } from '../utils/constants';
+import { getCategoryLabel, getExchangeRate, jpyToTwd, twdToJpy } from '../utils/userPreferences';
 
 const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const isEditMode = !!expense;
@@ -9,10 +10,25 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const [date, setDate] = useState('');
   const [currency, setCurrency] = useState('JPY'); // 'JPY' 或 'TWD'
   const [category, setCategory] = useState(DEFAULT_CATEGORY); // 'food', 'clothing', 'accommodation', 'transport'
+  const [exchangeRate, setExchangeRate] = useState(getExchangeRate()); // 動態匯率
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 0
   );
   const modalRef = useRef(null);
+
+  // 監聽偏好更新事件
+  useEffect(() => {
+    const handlePreferencesUpdate = () => {
+      setExchangeRate(getExchangeRate());
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('preferencesUpdated', handlePreferencesUpdate);
+      return () => {
+        window.removeEventListener('preferencesUpdated', handlePreferencesUpdate);
+      };
+    }
+  }, []);
 
   // 偵測鍵盤高度（visualViewport API）
   useEffect(() => {
@@ -90,8 +106,8 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
       const amountInDB = expense.amount || 0; // 資料庫中的金額（統一為日幣）
       
       if (originalCurrency === 'TWD') {
-        // 原始是台幣，將日幣值轉換回台幣顯示
-        const twdAmount = Math.round(amountInDB * EXCHANGE_RATE);
+        // 原始是台幣，將日幣值轉換回台幣顯示（使用動態匯率）
+        const twdAmount = jpyToTwd(amountInDB);
         setAmount(twdAmount.toString());
         setCurrency('TWD');
       } else {
@@ -126,11 +142,11 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
   const handleSubmit = () => {
     if (!amount) return;
     
-    // 統一轉換為日幣儲存
+    // 統一轉換為日幣儲存（使用動態匯率）
     let amountJPY;
     if (currency === 'TWD') {
       // 台幣轉日幣
-      amountJPY = Math.round(parseFloat(amount) * TWD_TO_JPY);
+      amountJPY = twdToJpy(parseFloat(amount));
     } else {
       // 日幣直接使用
       amountJPY = parseInt(amount);
@@ -153,13 +169,13 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
     const numAmount = parseFloat(amount) || 0;
     if (currency === 'TWD') {
       return {
-        jpy: Math.round(numAmount * TWD_TO_JPY),
+        jpy: twdToJpy(numAmount),
         twd: numAmount
       };
     } else {
       return {
         jpy: numAmount,
-        twd: Math.round(numAmount * EXCHANGE_RATE)
+        twd: jpyToTwd(numAmount)
       };
     }
   };
@@ -211,15 +227,15 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
               <button
                 type="button"
                 onClick={() => {
-                  // 切換幣別時，轉換金額
+                  // 切換幣別時，轉換金額（使用動態匯率）
                   if (amount) {
                     const numAmount = parseFloat(amount) || 0;
                     if (currency === 'JPY') {
                       // 從日幣切換到台幣
-                      setAmount(Math.round(numAmount * EXCHANGE_RATE).toString());
+                      setAmount(jpyToTwd(numAmount).toString());
                     } else {
                       // 從台幣切換到日幣
-                      setAmount(Math.round(numAmount * TWD_TO_JPY).toString());
+                      setAmount(twdToJpy(numAmount).toString());
                     }
                   }
                   setCurrency(currency === 'JPY' ? 'TWD' : 'JPY');
@@ -235,15 +251,15 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
               <button
                 type="button"
                 onClick={() => {
-                  // 切換幣別時，轉換金額
+                  // 切換幣別時，轉換金額（使用動態匯率）
                   if (amount) {
                     const numAmount = parseFloat(amount) || 0;
                     if (currency === 'JPY') {
                       // 從日幣切換到台幣
-                      setAmount(Math.round(numAmount * EXCHANGE_RATE).toString());
+                      setAmount(jpyToTwd(numAmount).toString());
                     } else {
                       // 從台幣切換到日幣
-                      setAmount(Math.round(numAmount * TWD_TO_JPY).toString());
+                      setAmount(twdToJpy(numAmount).toString());
                     }
                   }
                   setCurrency(currency === 'TWD' ? 'JPY' : 'TWD');
@@ -258,20 +274,24 @@ const ExpenseAddModal = ({ onClose, onSave, expense = null }) => {
               </button>
               
               {/* 分類按鈕 */}
-              {EXPENSE_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.value}
-                  type="button"
-                  onClick={() => setCategory(cat.value)}
-                  className={`px-2 py-1 rounded-full text-xs font-bold transition-colors ${
-                    category === cat.value
-                      ? 'bg-stone-900 text-white'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+              {EXPENSE_CATEGORIES.map((cat) => {
+                // 使用動態標籤（clothing 分類根據偏好顯示）
+                const displayLabel = getCategoryLabel(cat.value);
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setCategory(cat.value)}
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-colors ${
+                      category === cat.value
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    {displayLabel}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="flex items-baseline mt-2 border-b-2 border-stone-200 pb-2 focus-within:border-stone-800 transition-colors">

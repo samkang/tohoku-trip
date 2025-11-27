@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar, Map 
+  ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar, Map, Settings
 } from 'lucide-react';
 
 // Firebase SDK Imports
@@ -21,6 +21,7 @@ import EmergencyInfoModal from './components/EmergencyInfoModal';
 import LanguageCardModal from './components/LanguageCardModal';
 import BookingModal from './components/BookingModal';
 import ItineraryMapModal from './components/ItineraryMapModal';
+import PreferencesModal from './components/PreferencesModal';
 
 // ---------------------------------------------------------
 // 1. Firebase Configuration
@@ -72,6 +73,7 @@ const App = () => {
   const [showLanguageCard, setShowLanguageCard] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showItineraryMap, setShowItineraryMap] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -276,13 +278,24 @@ const App = () => {
             </div>
           </div>
           <div className="flex flex-col items-end gap-3">
-             {/* Order Dashboard Button */}
-             <button 
-               onClick={() => setShowBookingModal(true)}
-               className="bg-stone-100 p-2 rounded-full text-stone-500 hover:bg-stone-200 transition-colors"
-             >
-               <Calendar className="w-4 h-4" />
-             </button>
+             <div className="flex gap-2">
+               {/* Settings Button */}
+               <button 
+                 onClick={() => setShowPreferences(true)}
+                 className="bg-stone-100 p-2 rounded-full text-stone-500 hover:bg-stone-200 transition-colors"
+                 title="偏好設定"
+               >
+                 <Settings className="w-4 h-4" />
+               </button>
+               {/* Order Dashboard Button */}
+               <button 
+                 onClick={() => setShowBookingModal(true)}
+                 className="bg-stone-100 p-2 rounded-full text-stone-500 hover:bg-stone-200 transition-colors"
+                 title="預訂資訊"
+               >
+                 <Calendar className="w-4 h-4" />
+               </button>
+             </div>
              
              {/* Budget Button */}
              <div className="text-right cursor-pointer active:opacity-60 transition-opacity" onClick={() => setShowExpenseList(true)}>
@@ -461,6 +474,7 @@ const App = () => {
       {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
       {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}
       {showItineraryMap && <ItineraryMapModal onClose={() => setShowItineraryMap(false)} />}
+      {showPreferences && <PreferencesModal onClose={() => setShowPreferences(false)} />}
 
     </div>
   );

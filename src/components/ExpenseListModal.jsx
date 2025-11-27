@@ -1,16 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2, BarChart3, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { jpyToTwd, EXPENSE_CATEGORIES } from '../utils/constants';
-
-// 取得分類標籤
-const getCategoryLabel = (category) => {
-  const cat = EXPENSE_CATEGORIES.find(c => c.value === category);
-  return cat ? cat.label : '食';
-};
+import { EXPENSE_CATEGORIES } from '../utils/constants';
+import { getCategoryLabel, jpyToTwd, getExchangeRate } from '../utils/userPreferences';
 
 const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list' 或 'summary'
+  const [exchangeRate, setExchangeRate] = useState(getExchangeRate()); // 動態匯率
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
+
+  // 監聽偏好更新事件
+  useEffect(() => {
+    const handlePreferencesUpdate = () => {
+      setExchangeRate(getExchangeRate());
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('preferencesUpdated', handlePreferencesUpdate);
+      return () => {
+        window.removeEventListener('preferencesUpdated', handlePreferencesUpdate);
+      };
+    }
+  }, []);
 
   // 格式化日期函數
   const formatDate = (dateStr) => {
@@ -418,11 +428,13 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                         {EXPENSE_CATEGORIES.map((cat) => {
                           const stats = statistics.categoryStats[cat.value] || { count: 0, total: 0 };
                           const percentage = totalSpent > 0 ? Math.round((stats.total / totalSpent) * 100) : 0;
+                          // 使用動態標籤（clothing 分類根據偏好顯示）
+                          const displayLabel = getCategoryLabel(cat.value);
                           
                           return (
                             <div key={cat.value} className="p-3 bg-stone-50 rounded-lg">
                               <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-bold text-stone-800">{cat.label}</span>
+                                <span className="text-sm font-bold text-stone-800">{displayLabel}</span>
                                 <span className="text-xs text-stone-500">{stats.count}筆</span>
                               </div>
                               <div className="space-y-0.5">
