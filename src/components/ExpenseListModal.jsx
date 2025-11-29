@@ -7,6 +7,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list' 或 'summary'
   const [exchangeRate, setExchangeRate] = useState(getExchangeRate()); // 動態匯率
   const [selectedCategory, setSelectedCategory] = useState(null); // 選中的分類，null 表示顯示所有分類統計
+  const [selectedCurrency, setSelectedCurrency] = useState(null); // 選中的幣別，null 表示顯示所有幣別統計
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
 
   // 監聽偏好更新事件
@@ -180,6 +181,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
               onClick={() => {
                 setActiveTab('list');
                 setSelectedCategory(null); // 切換到消費記錄時重置選中的分類
+                setSelectedCurrency(null); // 切換到消費記錄時重置選中的幣別
               }}
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
                 activeTab === 'list'
@@ -193,6 +195,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
               onClick={() => {
                 setActiveTab('summary');
                 setSelectedCategory(null); // 切換到摘要報告時重置選中的分類
+                setSelectedCurrency(null); // 切換到摘要報告時重置選中的幣別
               }}
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
                 activeTab === 'summary'
@@ -399,6 +402,143 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                     );
                   })()}
                 </>
+              ) : selectedCurrency ? (
+                // 顯示選中幣別的詳細消費列表
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <button
+                      onClick={() => setSelectedCurrency(null)}
+                      className="bg-stone-100 p-2 rounded-full hover:bg-stone-200 transition-colors"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-stone-600" />
+                    </button>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-400 uppercase tracking-wider">
+                        幣別詳細
+                      </h3>
+                      <h4 className="text-xl font-serif font-bold text-stone-900">
+                        {selectedCurrency === 'JPY' ? '日幣輸入' : '台幣輸入'}
+                      </h4>
+                    </div>
+                  </div>
+                  
+                  {(() => {
+                    const currencyExpenses = expenses
+                      .filter(exp => (exp.currency || 'JPY') === selectedCurrency)
+                      .sort((a, b) => {
+                        // 先按日期排序，再按金額排序
+                        if (a.date !== b.date) {
+                          return b.date.localeCompare(a.date);
+                        }
+                        return b.amount - a.amount;
+                      });
+                    
+                    const currencyTotal = currencyExpenses.reduce((acc, cur) => acc + cur.amount, 0);
+                    const currencyStats = statistics.currencyStats[selectedCurrency] || { count: 0, total: 0 };
+                    
+                    return (
+                      <>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 mb-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs text-stone-400 mb-1">總計</p>
+                              {selectedCurrency === 'JPY' ? (
+                                <>
+                                  <p className="text-2xl font-mono font-bold text-stone-900">
+                                    ¥{currencyTotal.toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-stone-400 font-mono mt-1">
+                                    NT$ {jpyToTwd(currencyTotal).toLocaleString()}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-2xl font-mono font-bold text-stone-900">
+                                    NT$ {jpyToTwd(currencyTotal).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-stone-400 font-mono mt-1">
+                                    ≈ ¥{currencyTotal.toLocaleString()}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-stone-400 mb-1">筆數</p>
+                              <p className="text-2xl font-mono font-bold text-stone-900">
+                                {currencyStats.count}
+                              </p>
+                              <p className="text-xs text-stone-500 mt-1">筆</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {currencyExpenses.length === 0 ? (
+                          <div className="text-center py-10 text-stone-400 text-sm">
+                            此幣別尚無消費記錄
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {currencyExpenses.map((ex, idx) => {
+                              const showDateHeader = idx === 0 || currencyExpenses[idx - 1].date !== ex.date;
+                              
+                              return (
+                                <div key={ex.id}>
+                                  {showDateHeader && (
+                                    <div className="mb-2 mt-4 first:mt-0">
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-[1px] bg-stone-200"></div>
+                                        <span className="text-xs font-bold text-stone-500 px-2">
+                                          {formatDate(ex.date)}
+                                        </span>
+                                        <div className="flex-1 h-[1px] bg-stone-200"></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100 flex justify-between items-center group">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <p className="font-bold text-stone-800 text-sm">{ex.desc}</p>
+                                        <span className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded font-medium">
+                                          {getCategoryLabel(ex.category)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <CalendarIcon className="w-3 h-3 text-stone-400" />
+                                        <p className="text-[10px] text-stone-400 font-mono">{formatDate(ex.date)}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 ml-4">
+                                      <div className="text-right">
+                                        <div className="flex items-baseline gap-1">
+                                          <span className="font-mono font-bold text-stone-900 text-sm">¥{ex.amount.toLocaleString()}</span>
+                                          <span className="font-mono text-xs text-stone-400">/ NT${jpyToTwd(ex.amount).toLocaleString()}</span>
+                                        </div>
+                                      </div>
+                                      <button 
+                                        onClick={() => onEdit && onEdit(ex)}
+                                        className="text-stone-300 hover:text-blue-500 p-2 transition-colors"
+                                        title="編輯"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => onDelete(ex.id)}
+                                        className="text-stone-300 hover:text-red-400 p-2 -mr-2 transition-colors"
+                                        title="刪除"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
               ) : (
                 <>
                   {/* 基本統計 */}
@@ -521,7 +661,10 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                           return (
                             <button
                               key={cat.value}
-                              onClick={() => setSelectedCategory(cat.value)}
+                              onClick={() => {
+                                setSelectedCategory(cat.value);
+                                setSelectedCurrency(null); // 選擇分類時重置幣別
+                              }}
                               className={`p-3 bg-stone-50 rounded-lg transition-colors text-left active:scale-95 ${
                                 stats.count === 0
                                   ? 'opacity-50 cursor-not-allowed'
@@ -565,7 +708,13 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                       </h4>
                       <div className="flex gap-4 flex-wrap">
                         {statistics.currencyStats.JPY.count > 0 && (
-                          <div className="flex-1 min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              setSelectedCurrency('JPY');
+                              setSelectedCategory(null); // 選擇幣別時重置分類
+                            }}
+                            className="flex-1 min-w-[140px] p-3 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors text-left active:scale-95"
+                          >
                             <p className="text-xs text-stone-500 mb-1 flex items-center justify-between">
                               <span>日幣輸入</span>
                               <span className="text-[10px] text-stone-400">{statistics.currencyStats.JPY.count} 筆</span>
@@ -576,10 +725,16 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                             <p className="text-xs text-stone-500 mt-1">
                               佔比 {totalSpent > 0 ? Math.round((statistics.currencyStats.JPY.total / totalSpent) * 100) : 0}%
                             </p>
-                          </div>
+                          </button>
                         )}
                         {statistics.currencyStats.TWD.count > 0 && (
-                          <div className="flex-1 min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              setSelectedCurrency('TWD');
+                              setSelectedCategory(null); // 選擇幣別時重置分類
+                            }}
+                            className="flex-1 min-w-[140px] p-3 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors text-left active:scale-95"
+                          >
                             <p className="text-xs text-stone-500 mb-1 flex items-center justify-between">
                               <span>台幣輸入</span>
                               <span className="text-[10px] text-stone-400">{statistics.currencyStats.TWD.count} 筆</span>
@@ -593,7 +748,7 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
                             <p className="text-xs text-stone-500 mt-1">
                               佔比 {totalSpent > 0 ? Math.round((statistics.currencyStats.TWD.total / totalSpent) * 100) : 0}%
                             </p>
-                          </div>
+                          </button>
                         )}
                       </div>
                     </div>
