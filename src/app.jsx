@@ -92,6 +92,7 @@ const App = () => {
 
   // 天氣資料快取 (包含時間戳) - 使用普通物件以確保相容性
   const weatherCache = useRef({});
+  const [weatherData, setWeatherData] = useState({});
 
   // 清理過期的天氣快取 (30分鐘)
   const cleanupWeatherCache = () => {
@@ -165,6 +166,7 @@ const App = () => {
       // 先清空現有資料，避免顯示舊行程的資料
       setExpenses([]);
       setSelectedItem(null);
+      setWeatherData({});
 
       const tripDataResult = await loadTripData(tripId);
       setCurrentTrip(tripDataResult.config);
@@ -234,18 +236,18 @@ const App = () => {
         cleanupWeatherCache();
 
         if (locationsToFetch.length === 0) {
-          // 所有天氣資料都在快取中，直接更新 UI
-          const updatedData = tripData.map((day) => {
+          // 所有天氣資料都在快取中，直接更新 weatherData
+          const newWeatherData = { ...weatherData };
+          tripData.forEach((day) => {
             if (day.lat && day.long) {
               const cacheKey = `${day.lat},${day.long}`;
               const cachedWeather = weatherCache.current[cacheKey];
               if (cachedWeather && cachedWeather.data) {
-                return { ...day, weather: cachedWeather.data };
+                newWeatherData[cacheKey] = cachedWeather.data;
               }
             }
-            return day;
           });
-          setTripData(updatedData);
+          setWeatherData(newWeatherData);
           setIsWeatherLoading(false);
           return;
         }
@@ -253,12 +255,11 @@ const App = () => {
         console.log(`🌤️ 請求 ${locationsToFetch.length} 個地點的天氣資料`);
 
         // 批次請求天氣資料，加入延遲避免觸發速率限制
-        const updatedData = [...tripData];
+        const newWeatherData = { ...weatherData };
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         for (let i = 0; i < locationsToFetch.length; i++) {
           const { day, cacheKey } = locationsToFetch[i];
-          const dayIndex = tripData.indexOf(day);
 
           try {
             // 加入延遲，避免同時請求太多
@@ -281,7 +282,7 @@ const App = () => {
                 data: fallbackWeather,
                 timestamp: Date.now()
               };
-              updatedData[dayIndex] = { ...day, weather: fallbackWeather };
+              newWeatherData[cacheKey] = fallbackWeather;
               continue;
             }
 
@@ -293,7 +294,7 @@ const App = () => {
             if (data.current_weather) {
               const { weathercode, temperature } = data.current_weather;
               const { icon, desc } = getWeatherIcon(weathercode);
-              const weatherData = {
+              const weatherInfo = {
                 icon: icon,
                 temp: `${temperature}°C`,
                 desc: desc
@@ -301,10 +302,10 @@ const App = () => {
 
               // 存入快取（包含時間戳）
               weatherCache.current[cacheKey] = {
-                data: weatherData,
+                data: weatherInfo,
                 timestamp: Date.now()
               };
-              updatedData[dayIndex] = { ...day, weather: weatherData };
+              newWeatherData[cacheKey] = weatherInfo;
             }
           } catch (error) {
             console.warn(`🌤️ 無法獲取 ${day.loc} 天氣資料:`, error);
@@ -318,11 +319,11 @@ const App = () => {
               data: fallbackWeather,
               timestamp: Date.now()
             };
-            updatedData[dayIndex] = { ...day, weather: fallbackWeather };
+            newWeatherData[cacheKey] = fallbackWeather;
           }
         }
 
-        setTripData(updatedData);
+        setWeatherData(newWeatherData);
       } catch (error) {
         console.error("🌤️ 天氣資料載入錯誤:", error);
       } finally {
@@ -331,7 +332,7 @@ const App = () => {
     };
 
     fetchWeatherWithCache();
-  }, [tripData]);
+  }, [currentTrip]);
 
   // Auth
   useEffect(() => {
@@ -691,18 +692,24 @@ const App = () => {
 
       {/* CONTENT */}
       <main className="px-4 pb-32 flex-1 overflow-y-auto">
-        {tripData.map((day, dIdx) => (
-          <div key={dIdx} className="mb-10">
-            <div className="sticky top-0 z-10 bg-[#FAF9F6]/95 backdrop-blur py-3 mb-4 border-b border-stone-200/60 flex items-baseline justify-between pr-4">
-              <div className="flex items-baseline">
-                <h2 className="text-xl font-serif font-bold mr-3">{day.day}</h2>
-                <span className="text-xs font-bold text-stone-400 tracking-wide uppercase">{day.loc}</span>
+        {tripData.map((day, dIdx) => {
+          const weatherKey = day.lat && day.long ? `${day.lat},${day.long}` : null;
+          const dayWeather = weatherKey ? weatherData[weatherKey] : null;
+
+          return (
+            <div key={dIdx} className="mb-10">
+              <div className="sticky top-0 z-10 bg-[#FAF9F6]/95 backdrop-blur py-3 mb-4 border-b border-stone-200/60 flex items-baseline justify-between pr-4">
+                <div className="flex items-baseline">
+                  <h2 className="text-xl font-serif font-bold mr-3">{day.day}</h2>
+                  <span className="text-xs font-bold text-stone-400 tracking-wide uppercase">{day.loc}</span>
+                </div>
+                {dayWeather && (
+                  <div className="flex items-center gap-2 text-xs text-stone-500 bg-white/50 px-2 py-1 rounded-full">
+                     <span>{dayWeather.desc}</span>
+                     <span className="font-mono">{dayWeather.temp}</span>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 text-xs text-stone-500 bg-white/50 px-2 py-1 rounded-full">
-                 <span>{day.weather.desc}</span>
-                 <span className="font-mono">{day.weather.temp}</span>
-              </div>
-            </div>
 
             <div className="space-y-4 pl-2 relative">
               <div className="absolute left-[7px] top-2 bottom-4 w-[1px] bg-stone-200"></div>
@@ -775,7 +782,8 @@ const App = () => {
               ))}
             </div>
           </div>
-        ))}
+        );
+      })}
       </main>
 
       {/* BOTTOM NAV */}
