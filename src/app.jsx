@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ChevronRight, RefreshCw, PlusCircle, AlertCircle, Receipt, FileText, MessageCircle, Calendar, Map, Settings
 } from 'lucide-react';
@@ -12,8 +12,10 @@ import {
 import { getAuth, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 
 // Custom Imports
-import { initialTripData } from './data/itinerary';
 import { WeatherIcon, CategoryIcon, getWeatherIcon } from './components/Icons';
+import TripSelector from './components/TripSelector';
+import { loadTripData } from './data/trip-loader';
+import { DEFAULT_TRIP_ID, getTripConfig } from './config/trips';
 import { updatePreference } from './utils/userPreferences';
 import DetailModal from './components/DetailModal';
 import ExpenseAddModal from './components/ExpenseAddModal';
@@ -61,25 +63,18 @@ console.log('🔥 Firebase 已初始化:', {
 // 在 Canvas 預覽環境中使用環境變數提供的 appId，確保多人協作時資料隔離
 // 若使用者自行部署，則可使用固定的 Collection Name
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'tohoku-trip-preview';
-const COLLECTION_NAME = 'expenses'; 
 
 // ---------------------------------------------------------
 // 2. Main App
 // ---------------------------------------------------------
 
 const App = () => {
-  // 預設行程配置（單行程模式）
-  const defaultTrip = {
-    id: 'tohoku-winter',
-    name: '東北初冬之旅',
-    shortName: '東北之旅',
-    description: '2025 日本東北 5 天 4 夜行程助手',
-    startDate: '2025-11-25',
-    endDate: '2025-11-29',
-    destination: '日本東北'
-  };
+  // 行程相關狀態
+  const [currentTrip, setCurrentTrip] = useState(null);
+  const [tripData, setTripData] = useState(null);
+  const [isTripLoading, setIsTripLoading] = useState(true);
 
-  const [tripData, setTripData] = useState(initialTripData);
+  // 應用狀態
   const [selectedItem, setSelectedItem] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showExpenseList, setShowExpenseList] = useState(false);
@@ -89,35 +84,254 @@ const App = () => {
   const [showItineraryMap, setShowItineraryMap] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
   const [showDataBackup, setShowDataBackup] = useState(false);
+  const [showTripSelector, setShowTripSelector] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [currentTrip, setCurrentTrip] = useState(defaultTrip);
 
-  // Weather API
+  // 天氣資料快取 (包含時間戳) - 使用普通物件以確保相容性
+  const weatherCache = useRef({});
+
+  // 清理過期的天氣快取 (30分鐘)
+  const cleanupWeatherCache = () => {
+    const now = Date.now();
+    const expiryTime = 30 * 60 * 1000; // 30分鐘
+
+    Object.keys(weatherCache.current).forEach(key => {
+      const value = weatherCache.current[key];
+      if (value.timestamp && (now - value.timestamp) > expiryTime) {
+        delete weatherCache.current[key];
+      }
+    });
+  };
+
+  // 動態獲取 Collection Name
+  const getCollectionName = () => {
+    if (!currentTrip) return 'expenses';
+
+    // 向後相容性：檢查是否有 legacyCollection 標記
+    if (currentTrip.legacyCollection) {
+      return 'expenses'; // 繼續使用舊的 collection
+    }
+
+    return `expenses_${currentTrip.id}`;
+  };
+
+  // 行程載入邏輯
   useEffect(() => {
-    const fetchWeather = async () => {
+    const loadInitialTrip = async () => {
+      try {
+        // 從URL參數或localStorage獲取行程ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTripId = urlParams.get('trip');
+        const storedTripId = localStorage.getItem('selectedTrip');
+
+        // 如果沒有任何行程選擇，顯示選擇器
+        if (!urlTripId && !storedTripId) {
+          console.log('首次使用，顯示行程選擇器');
+          setIsTripLoading(false);
+          setShowTripSelector(true);
+          return;
+        }
+
+        const tripId = urlTripId || storedTripId || DEFAULT_TRIP_ID;
+
+        console.log(`載入行程: ${tripId}`);
+        const tripDataResult = await loadTripData(tripId);
+
+        setCurrentTrip(tripDataResult.config);
+        setTripData(tripDataResult.itinerary);
+        // 注意：不要在這裡設定 setIsTripLoading(false)
+        // 讓費用資料載入完成後再設定
+
+      } catch (error) {
+        console.error('載入行程失敗:', error);
+        // 如果載入失敗，顯示行程選擇器
+        setIsTripLoading(false);
+        setShowTripSelector(true);
+      }
+    };
+
+    loadInitialTrip();
+  }, []);
+
+  // 選擇行程
+  const handleTripSelect = async (tripId) => {
+    try {
+      setIsTripLoading(true);
+      console.log(`選擇行程: ${tripId}`);
+
+      // 先清空現有資料，避免顯示舊行程的資料
+      setExpenses([]);
+      setSelectedItem(null);
+
+      const tripDataResult = await loadTripData(tripId);
+      setCurrentTrip(tripDataResult.config);
+      setTripData(tripDataResult.itinerary);
+
+      // 儲存選擇
+      localStorage.setItem('selectedTrip', tripId);
+
+      // 更新URL
+      const url = new URL(window.location);
+      url.searchParams.set('trip', tripId);
+      window.history.pushState({}, '', url);
+
+      setShowTripSelector(false);
+      // 注意：不要在這裡設定 setIsTripLoading(false)
+      // 讓費用資料載入完成後再設定
+
+    } catch (error) {
+      console.error('選擇行程失敗:', error);
+      setIsTripLoading(false);
+      alert('載入行程失敗，請重試');
+    }
+  };
+
+  // 切換行程（顯示選擇器）
+  const switchTrip = () => {
+    setShowTripSelector(true);
+  };
+
+  // 重新載入天氣資料
+  const refreshWeather = async () => {
+    if (!tripData) return;
+
+    console.log('🌤️ 重新載入天氣資料');
+
+    // 清空相關地點的快取
+    tripData.forEach((day) => {
+      if (day.lat && day.long) {
+        const cacheKey = `${day.lat},${day.long}`;
+        delete weatherCache.current[cacheKey];
+      }
+    });
+
+    // 重新觸發 useEffect
+    setTripData([...tripData]);
+  };
+
+  // Weather API with caching and rate limiting
+  useEffect(() => {
+    if (!tripData) return;
+
+    const fetchWeatherWithCache = async () => {
       setIsWeatherLoading(true);
       try {
-        const updatedData = await Promise.all(initialTripData.map(async (day) => {
-          if (!day.lat || !day.long) return day;
+        // 收集需要請求天氣的所有地點
+        const locationsToFetch = [];
+        tripData.forEach((day) => {
+          if (day.lat && day.long) {
+            const cacheKey = `${day.lat},${day.long}`;
+            if (!(cacheKey in weatherCache.current)) {
+              locationsToFetch.push({ day, cacheKey });
+            }
+          }
+        });
+
+        // 清理過期的快取
+        cleanupWeatherCache();
+
+        if (locationsToFetch.length === 0) {
+          // 所有天氣資料都在快取中，直接更新 UI
+          const updatedData = tripData.map((day) => {
+            if (day.lat && day.long) {
+              const cacheKey = `${day.lat},${day.long}`;
+              const cachedWeather = weatherCache.current[cacheKey];
+              if (cachedWeather && cachedWeather.data) {
+                return { ...day, weather: cachedWeather.data };
+              }
+            }
+            return day;
+          });
+          setTripData(updatedData);
+          setIsWeatherLoading(false);
+          return;
+        }
+
+        console.log(`🌤️ 請求 ${locationsToFetch.length} 個地點的天氣資料`);
+
+        // 批次請求天氣資料，加入延遲避免觸發速率限制
+        const updatedData = [...tripData];
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let i = 0; i < locationsToFetch.length; i++) {
+          const { day, cacheKey } = locationsToFetch[i];
+          const dayIndex = tripData.indexOf(day);
+
           try {
-            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${day.lat}&longitude=${day.long}&current_weather=true&timezone=Asia%2FTokyo`);
-            const data = await res.json();
+            // 加入延遲，避免同時請求太多
+            if (i > 0) await delay(200);
+
+            const response = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${day.lat}&longitude=${day.long}&current_weather=true&timezone=Asia%2FTokyo`
+            );
+
+            // 檢查是否被限速
+            if (response.status === 429) {
+              console.warn('🌤️ 天氣 API 請求過於頻繁，稍後重試');
+              // 設定一個備用天氣資料
+              const fallbackWeather = {
+                icon: 'cloud',
+                temp: '--°C',
+                desc: '暫無資料'
+              };
+              weatherCache.current[cacheKey] = {
+                data: fallbackWeather,
+                timestamp: Date.now()
+              };
+              updatedData[dayIndex] = { ...day, weather: fallbackWeather };
+              continue;
+            }
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
             if (data.current_weather) {
               const { weathercode, temperature } = data.current_weather;
               const { icon, desc } = getWeatherIcon(weathercode);
-              return { ...day, weather: { icon: icon, temp: `${temperature}°C`, desc: desc } };
+              const weatherData = {
+                icon: icon,
+                temp: `${temperature}°C`,
+                desc: desc
+              };
+
+              // 存入快取（包含時間戳）
+              weatherCache.current[cacheKey] = {
+                data: weatherData,
+                timestamp: Date.now()
+              };
+              updatedData[dayIndex] = { ...day, weather: weatherData };
             }
-            return day;
-          } catch (err) { return day; }
-        }));
+          } catch (error) {
+            console.warn(`🌤️ 無法獲取 ${day.loc} 天氣資料:`, error);
+            // 設定備用天氣資料
+            const fallbackWeather = {
+              icon: 'cloud',
+              temp: '--°C',
+              desc: '載入失敗'
+            };
+            weatherCache.current[cacheKey] = {
+              data: fallbackWeather,
+              timestamp: Date.now()
+            };
+            updatedData[dayIndex] = { ...day, weather: fallbackWeather };
+          }
+        }
+
         setTripData(updatedData);
-      } catch (error) { console.error("Global weather fetch error", error); } finally { setIsWeatherLoading(false); }
+      } catch (error) {
+        console.error("🌤️ 天氣資料載入錯誤:", error);
+      } finally {
+        setIsWeatherLoading(false);
+      }
     };
-    fetchWeather();
-  }, []);
+
+    fetchWeatherWithCache();
+  }, [tripData]);
 
   // Auth
   useEffect(() => {
@@ -153,17 +367,24 @@ const App = () => {
 
   // Data Sync (Updated for Preview & Vercel)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !currentTrip) return;
+
+    // 在 useEffect 內部計算 COLLECTION_NAME，確保使用最新的 currentTrip
+    const currentCollectionName = currentTrip.legacyCollection
+      ? 'expenses'
+      : `expenses_${currentTrip.id}`;
+    console.log('📡 Firebase 資料同步 useEffect 執行, COLLECTION_NAME:', currentCollectionName, 'currentTrip:', currentTrip?.id);
+
     let q;
-    
+
     if (typeof __app_id !== 'undefined') {
        // 預覽環境路徑（無法使用多個 orderBy，需要在客戶端排序）
-       q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME));
+       q = query(collection(db, 'artifacts', appId, 'public', 'data', currentCollectionName));
     } else {
        // Vercel 正式環境路徑：先按日期降序（單一排序避免需要複合索引）
        // 注意：如果需要複合索引，可以在 Firebase Console 建立
        // 目前改為客戶端排序以確保立即運作
-       q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
+       q = query(collection(db, currentCollectionName), orderBy('date', 'desc'));
     }
 
     return onSnapshot(q, 
@@ -180,14 +401,19 @@ const App = () => {
           return (a.order || 0) - (b.order || 0);
         });
         
-        console.log('✅ Firebase 資料同步成功，共', expensesData.length, '筆費用');
+        console.log(`✅ ${currentTrip?.name || '當前行程'} 費用資料同步成功，共`, expensesData.length, '筆費用');
         setExpenses(expensesData);
+
+        // 當費用資料載入完成時，設定載入狀態為 false
+        if (isTripLoading) {
+          setIsTripLoading(false);
+        }
       },
       (error) => {
         console.error('❌ Firebase 資料同步失敗:', error);
       }
     );
-  }, [user]);
+  }, [user, currentTrip]);
 
   const saveExpense = async (data, expenseId = null) => {
     if (!user) return;
@@ -217,10 +443,11 @@ const App = () => {
     };
     
     try {
+      const collectionName = getCollectionName();
       if (typeof __app_id !== 'undefined') {
-         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME), payload);
+         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', collectionName), payload);
       } else {
-         await addDoc(collection(db, COLLECTION_NAME), payload);
+         await addDoc(collection(db, collectionName), payload);
       }
     } catch(e) { console.error(e); }
   };
@@ -245,10 +472,11 @@ const App = () => {
       }
       
       updates.updatedAt = Date.now();
-      
+
+      const collectionName = getCollectionName();
       const docRef = typeof __app_id !== 'undefined'
-        ? doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, id)
-        : doc(db, COLLECTION_NAME, id);
+        ? doc(db, 'artifacts', appId, 'public', 'data', collectionName, id)
+        : doc(db, collectionName, id);
       
       await updateDoc(docRef, updates);
     } catch(e) { 
@@ -258,10 +486,11 @@ const App = () => {
 
   const deleteExpense = async (id) => {
     try {
+      const collectionName = getCollectionName();
       if (typeof __app_id !== 'undefined') {
-         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, id));
+         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, id));
       } else {
-         await deleteDoc(doc(db, COLLECTION_NAME, id));
+         await deleteDoc(doc(db, collectionName, id));
       }
     } catch(e) { console.error(e); }
   };
@@ -275,17 +504,19 @@ const App = () => {
     try {
       // 清除現有資料 - 使用批次操作
       if (expenses.length > 0) {
+        const collectionName = getCollectionName();
         const batch = writeBatch(db);
         expenses.forEach(expense => {
           const docRef = typeof __app_id !== 'undefined'
-            ? doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, expense.id)
-            : doc(db, COLLECTION_NAME, expense.id);
+            ? doc(db, 'artifacts', appId, 'public', 'data', collectionName, expense.id)
+            : doc(db, collectionName, expense.id);
           batch.delete(docRef);
         });
         await batch.commit();
       }
 
       // 匯入新資料
+      const collectionName = getCollectionName();
       const importPromises = importData.expenses.map(async (expense, index) => {
         const payload = {
           ...expense,
@@ -295,9 +526,9 @@ const App = () => {
         };
 
         if (typeof __app_id !== 'undefined') {
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME), payload);
+          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', collectionName), payload);
         } else {
-          await addDoc(collection(db, COLLECTION_NAME), payload);
+          await addDoc(collection(db, collectionName), payload);
         }
       });
 
@@ -328,6 +559,40 @@ const App = () => {
 
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
 
+  // 如果正在載入行程，顯示載入畫面
+  if (isTripLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-900 mx-auto mb-4"></div>
+          <p className="text-stone-500">載入行程中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果顯示行程選擇器（首次使用或手動切換）
+  if (showTripSelector) {
+    return (
+      <TripSelector
+        onTripSelect={handleTripSelect}
+        currentTripId={currentTrip?.id}
+      />
+    );
+  }
+
+  // 如果沒有行程資料，顯示載入狀態
+  if (!currentTrip || !tripData) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-900 mx-auto mb-4"></div>
+          <p className="text-stone-500">準備行程資料...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#FAF9F6] min-h-screen font-sans text-stone-800 max-w-md mx-auto shadow-2xl relative overflow-hidden flex flex-col">
       
@@ -337,9 +602,9 @@ const App = () => {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs font-bold tracking-[0.2em] text-stone-400 uppercase flex items-center gap-1">
-                Family Trip <ChevronRight className="w-3 h-3" />
+                {currentTrip.destination} <ChevronRight className="w-3 h-3" />
               </p>
-              <button 
+              <button
                 onClick={() => setShowItineraryMap(true)}
                 className="bg-purple-100 text-purple-600 p-1.5 rounded-full hover:bg-purple-200 transition-colors"
                 title="查看行程導覽圖"
@@ -347,10 +612,19 @@ const App = () => {
                 <Map className="w-3 h-3" />
               </button>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-stone-900">東北初冬旅</h1>
-            <div className="flex items-center mt-2 text-stone-500 text-xs font-medium">
-              <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600 mr-2">2025</span>
-              <span>11.25 - 11.29</span>
+            <h1 className="text-3xl font-serif font-bold text-stone-900">{currentTrip.name}</h1>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center text-stone-500 text-xs font-medium">
+                <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600 mr-2">2025</span>
+                <span>{currentTrip.startDate} - {currentTrip.endDate}</span>
+              </div>
+              <button
+                onClick={switchTrip}
+                className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full hover:bg-stone-200 transition-colors text-xs font-medium"
+                title="切換行程"
+              >
+                切換行程
+              </button>
             </div>
           </div>
           <div className="flex flex-col items-end gap-3">
@@ -399,6 +673,19 @@ const App = () => {
               </span>
             </div>
           ))}
+          {/* 天氣重新載入按鈕 */}
+          {!isWeatherLoading && (
+            <div className="flex-shrink-0 flex flex-col items-center min-w-[60px] justify-center">
+              <button
+                onClick={refreshWeather}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors flex items-center justify-center"
+                title="重新載入天氣"
+              >
+                <RefreshCw className="w-4 h-4 text-stone-600" />
+              </button>
+              <span className="text-[10px] text-stone-400 mt-1">更新</span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -559,6 +846,20 @@ const App = () => {
           onClose={() => setShowDataBackup(false)}
           onImportSuccess={handleDataImport}
         />
+      )}
+
+      {/* 行程選擇器 */}
+      {showTripSelector && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm">
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden">
+              <TripSelector
+                onTripSelect={handleTripSelect}
+                currentTripId={currentTrip?.id}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 資料備份提醒 */}
