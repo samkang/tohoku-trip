@@ -105,7 +105,7 @@ const TripCard = ({ trip, isSelected, onSelect }) => {
       <div className="relative h-32 bg-gradient-to-br from-stone-100 to-stone-200 overflow-hidden">
         {!imageError ? (
           <img
-            src={`/public/${trip.coverImage}`}
+            src={`/${trip.coverImage}`}
             alt={trip.name}
             className={`w-full h-full object-cover transition-opacity duration-300 ${
               imageLoaded ? 'opacity-100' : 'opacity-0'

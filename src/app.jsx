@@ -612,6 +612,13 @@ const App = () => {
               >
                 <Map className="w-3 h-3" />
               </button>
+              <button
+                onClick={switchTrip}
+                className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full hover:bg-stone-200 transition-colors text-[11px] font-medium"
+                title="切換行程"
+              >
+                切換行程
+              </button>
             </div>
             <h1 className="text-3xl font-serif font-bold text-stone-900">{currentTrip.name}</h1>
             <div className="flex items-center justify-between mt-2">
@@ -619,13 +626,6 @@ const App = () => {
                 <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600 mr-2">2025</span>
                 <span>{currentTrip.startDate} - {currentTrip.endDate}</span>
               </div>
-              <button
-                onClick={switchTrip}
-                className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full hover:bg-stone-200 transition-colors text-xs font-medium"
-                title="切換行程"
-              >
-                切換行程
-              </button>
             </div>
           </div>
           <div className="flex flex-col items-end gap-3">
@@ -845,7 +845,13 @@ const App = () => {
       {showEmergencyInfo && <EmergencyInfoModal onClose={() => setShowEmergencyInfo(false)} />}
       {showLanguageCard && <LanguageCardModal onClose={() => setShowLanguageCard(false)} />}
       {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}
-      {showItineraryMap && <ItineraryMapModal onClose={() => setShowItineraryMap(false)} />}
+      {showItineraryMap && (
+        <ItineraryMapModal
+          onClose={() => setShowItineraryMap(false)}
+          currentTrip={currentTrip}
+          tripData={tripData}
+        />
+      )}
       {showPreferences && <PreferencesModal onClose={() => setShowPreferences(false)} />}
       {showDataBackup && (
         <DataBackupModal
