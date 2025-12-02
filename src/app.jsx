@@ -560,6 +560,21 @@ const App = () => {
 
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
 
+  // 行程載入安全機制：避免因為網路或 Firebase 問題導致一直卡在「載入行程中」
+  useEffect(() => {
+    // 當不在載入狀態時，不需要啟動計時器
+    if (!isTripLoading) return;
+
+    // 最長等候時間（毫秒）：例如 8 秒
+    const timeout = setTimeout(() => {
+      console.warn('⏱ 行程載入逾時，自動解除載入狀態以顯示畫面');
+      setIsTripLoading(false);
+    }, 8000);
+
+    // 如果行程在 8 秒內成功載入，或元件卸載時，清除計時器
+    return () => clearTimeout(timeout);
+  }, [isTripLoading, currentTrip]);
+
   // 如果正在載入行程，顯示載入畫面
   if (isTripLoading) {
     return (
