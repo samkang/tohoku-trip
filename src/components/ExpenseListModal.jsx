@@ -3,7 +3,7 @@ import { X, Receipt, CreditCard, Calendar as CalendarIcon, Trash2, Edit2, BarCha
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import { getCategoryLabel, jpyToTwd, getExchangeRate } from '../utils/userPreferences';
 
-const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
+const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit, onBackup }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list' 或 'summary'
   const [exchangeRate, setExchangeRate] = useState(getExchangeRate()); // 動態匯率
   const [selectedCategory, setSelectedCategory] = useState(null); // 選中的分類，null 表示顯示所有分類統計
@@ -153,9 +153,22 @@ const ExpenseListModal = ({ expenses, onClose, onDelete, onEdit }) => {
             </div>
             <h2 className="text-2xl font-serif font-bold text-stone-900">旅行帳本</h2>
           </div>
-          <button onClick={onClose} className="bg-stone-100 p-2 rounded-full hover:bg-stone-200 transition-colors">
-            <X className="w-5 h-5 text-stone-600" />
-          </button>
+          <div className="flex gap-2">
+            {onBackup && (
+              <button
+                onClick={onBackup}
+                className="bg-amber-100 text-amber-700 p-2 rounded-full hover:bg-amber-200 transition-colors"
+                title="資料備份"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </button>
+            )}
+            <button onClick={onClose} className="bg-stone-100 p-2 rounded-full hover:bg-stone-200 transition-colors">
+              <X className="w-5 h-5 text-stone-600" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 pb-0">

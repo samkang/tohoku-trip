@@ -5,15 +5,16 @@ import {
 
 // Firebase SDK Imports
 import { initializeApp } from 'firebase/app';
-import { 
+import {
   getFirestore, collection, addDoc, deleteDoc, updateDoc,
-  onSnapshot, query, orderBy, doc 
+  onSnapshot, query, orderBy, doc, writeBatch
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 
 // Custom Imports
 import { initialTripData } from './data/itinerary';
 import { WeatherIcon, CategoryIcon, getWeatherIcon } from './components/Icons';
+import { updatePreference } from './utils/userPreferences';
 import DetailModal from './components/DetailModal';
 import ExpenseAddModal from './components/ExpenseAddModal';
 import ExpenseListModal from './components/ExpenseListModal';
@@ -22,6 +23,8 @@ import LanguageCardModal from './components/LanguageCardModal';
 import BookingModal from './components/BookingModal';
 import ItineraryMapModal from './components/ItineraryMapModal';
 import PreferencesModal from './components/PreferencesModal';
+import DataBackupModal from './components/DataBackupModal';
+import DataReminder from './components/DataReminder';
 
 // ---------------------------------------------------------
 // 1. Firebase Configuration
@@ -65,6 +68,17 @@ const COLLECTION_NAME = 'expenses';
 // ---------------------------------------------------------
 
 const App = () => {
+  // 預設行程配置（單行程模式）
+  const defaultTrip = {
+    id: 'tohoku-winter',
+    name: '東北初冬之旅',
+    shortName: '東北之旅',
+    description: '2025 日本東北 5 天 4 夜行程助手',
+    startDate: '2025-11-25',
+    endDate: '2025-11-29',
+    destination: '日本東北'
+  };
+
   const [tripData, setTripData] = useState(initialTripData);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -74,10 +88,12 @@ const App = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showItineraryMap, setShowItineraryMap] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
+  const [showDataBackup, setShowDataBackup] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [user, setUser] = useState(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [currentTrip, setCurrentTrip] = useState(defaultTrip);
 
   // Weather API
   useEffect(() => {
@@ -248,6 +264,66 @@ const App = () => {
          await deleteDoc(doc(db, COLLECTION_NAME, id));
       }
     } catch(e) { console.error(e); }
+  };
+
+  // 處理資料匯入
+  const handleDataImport = async (importData) => {
+    if (!currentTrip) {
+      throw new Error('請先選擇行程');
+    }
+
+    try {
+      // 清除現有資料 - 使用批次操作
+      if (expenses.length > 0) {
+        const batch = writeBatch(db);
+        expenses.forEach(expense => {
+          const docRef = typeof __app_id !== 'undefined'
+            ? doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, expense.id)
+            : doc(db, COLLECTION_NAME, expense.id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+
+      // 匯入新資料
+      const importPromises = importData.expenses.map(async (expense, index) => {
+        const payload = {
+          ...expense,
+          tripId: currentTrip.id,
+          order: index + 1,
+          importedAt: Date.now()
+        };
+
+        if (typeof __app_id !== 'undefined') {
+          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME), payload);
+        } else {
+          await addDoc(collection(db, COLLECTION_NAME), payload);
+        }
+      });
+
+      await Promise.all(importPromises);
+
+      // 更新偏好設定
+      if (importData.userPreferences) {
+        if (importData.userPreferences.exchangeRate) {
+          updatePreference('exchangeRate', importData.userPreferences.exchangeRate);
+        }
+        if (importData.userPreferences.clothingLabel) {
+          updatePreference('clothingLabel', importData.userPreferences.clothingLabel);
+        }
+      }
+
+      console.log(`✅ 成功匯入 ${importData.expenses.length} 筆費用記錄`);
+
+      // 觸發費用更新事件
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('expensesUpdated'));
+      }
+
+    } catch (error) {
+      console.error('❌ 資料匯入失敗:', error);
+      throw error;
+    }
   };
 
   const totalSpent = expenses.reduce((acc, cur) => acc + cur.amount, 0);
@@ -459,10 +535,11 @@ const App = () => {
         />
       )}
       {showExpenseList && (
-        <ExpenseListModal 
-          expenses={expenses} 
-          onClose={() => setShowExpenseList(false)} 
+        <ExpenseListModal
+          expenses={expenses}
+          onClose={() => setShowExpenseList(false)}
           onDelete={deleteExpense}
+          onBackup={() => setShowDataBackup(true)}
           onEdit={(expense) => {
             setEditingExpense(expense);
             // 不關閉 ExpenseListModal，讓編輯後可以繼續停留在帳本畫面
@@ -475,6 +552,20 @@ const App = () => {
       {showBookingModal && <BookingModal tripData={tripData} onClose={() => setShowBookingModal(false)} />}
       {showItineraryMap && <ItineraryMapModal onClose={() => setShowItineraryMap(false)} />}
       {showPreferences && <PreferencesModal onClose={() => setShowPreferences(false)} />}
+      {showDataBackup && (
+        <DataBackupModal
+          expenses={expenses}
+          currentTrip={currentTrip}
+          onClose={() => setShowDataBackup(false)}
+          onImportSuccess={handleDataImport}
+        />
+      )}
+
+      {/* 資料備份提醒 */}
+      <DataReminder
+        expenses={expenses}
+        onBackupClick={() => setShowDataBackup(true)}
+      />
 
     </div>
   );
